@@ -75,14 +75,13 @@ def process_files(file_list, df_masterfile):
                 df.drop('AMOUNT', axis=1, inplace=True)
 
             # Final ordering
-            final_order = ['DATE', 'DESCRIPTION_CODE', 'CODE1', 'DEBIT', 'CREDIT', 'original_index']
+            final_order = ['DATE', 'DESCRIPTION_CODE', 'CODE1', 'CREDIT', 'DEBIT', 'original_index']
             df1 = df1[final_order]
             df2 = df2[final_order]
 
             # Concatenate and save
             df_combined = pd.concat([df1, df2]).sort_values(by='original_index').reset_index(drop=True)
-
-            # Save the file
+            df_combined.drop('original_index',axis=1, inplace =True)
             try:
                 output_path = os.path.join("temp", "final_output.xlsx")
                 df_combined.to_excel(output_path, index=False)
