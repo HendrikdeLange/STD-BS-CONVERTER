@@ -25,7 +25,7 @@ def process_files(file_list, df_masterfile):
             df = pd.read_csv(file, header=None)
 
             if df.shape[1] < 6:
-                print(f"File {file} does not have enough columns.")
+                st.error(f"File {file} does not have enough columns.")
                 continue
 
             # Add an auxiliary column for original index
@@ -84,15 +84,22 @@ def process_files(file_list, df_masterfile):
 
             # Save the file
             try:
-                output_path = os.path.join(os.path.expanduser("~"), "Downloads", "final_output.xlsx")
+                output_path = os.path.join("temp", "final_output.xlsx")
                 df_combined.to_excel(output_path, index=False)
-                st.write("File saved to:", output_path)
-                os.startfile(output_path)
+
+                with open(output_path, "rb") as file:
+                    st.download_button(
+                        label="Download Processed File",
+                        data=file,
+                        file_name="final_output.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
             except Exception as e:
                 st.error(f"Failed to save the file: {e}")
 
         except Exception as e:
-            print(f"Error processing file {file}: {e}")
+            st.error(f"Error processing file {file}: {e}")
 
     st.write("Files have been processed successfully.")
 
@@ -120,8 +127,8 @@ def main():
             f.write(uploaded_master_file.getbuffer())
         global df_masterfile
         try:
-            df_masterfile = pd.read_excel(file_path,)
-            df_masterfile.columns = ['CODE1','DESCRIPTION']
+            df_masterfile = pd.read_excel(file_path)
+            df_masterfile.columns = ['CODE1', 'DESCRIPTION']
             st.write(f"Master file {uploaded_master_file.name} loaded successfully.")
         except Exception as e:
             st.error(f"Failed to load the master file: {e}")
