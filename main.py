@@ -71,12 +71,12 @@ def process_standard_bank_files(file_list, df_masterfile):
 
             # Process amounts
             for df in [df1, df2]:
-                df['DEBIT'] = np.where(df['AMOUNT'] > 0, df['AMOUNT'], 0)
-                df['CREDIT'] = np.where(df['AMOUNT'] < 0, -df['AMOUNT'], 0)
+                df['CREDIT'] = np.where(df['AMOUNT'] > 0, df['AMOUNT'], 0)
+                df['DEBIT'] = np.where(df['AMOUNT'] < 0, -df['AMOUNT'], 0)
                 df.drop('AMOUNT', axis=1, inplace=True)
 
             # Final ordering
-            final_order = ['DATE', 'DESCRIPTION_CODE', 'CODE1', 'CREDIT', 'DEBIT', 'original_index']
+            final_order = ['DATE', 'DESCRIPTION_CODE', 'CODE1', 'DEBIT', 'CREDIT', 'original_index']
             df1 = df1[final_order]
             df2 = df2[final_order]
 
@@ -143,8 +143,8 @@ def process_absa_bank_files(file_list, df_masterfile):
             df_absa = pd.concat([df3, df4]).sort_values(by='original_index').reset_index(drop=True)
 
             # DEBIT and CREDIT
-            df_absa['CREDIT'] = np.where(df_absa['AMOUNT'] < 0, -df_absa['AMOUNT'], 0)
-            df_absa['DEBIT'] = np.where(df_absa['AMOUNT'] > 0, df_absa['AMOUNT'], 0)
+            df_absa['DEBIT'] = np.where(df_absa['AMOUNT'] < 0, -df_absa['AMOUNT'], 0)
+            df_absa['CREDIT'] = np.where(df_absa['AMOUNT'] > 0, df_absa['AMOUNT'], 0)
             df_absa.drop('AMOUNT', axis='columns', inplace=True)
             df_absa.drop('original_index', axis='columns', inplace=True)
 
