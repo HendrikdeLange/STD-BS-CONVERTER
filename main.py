@@ -174,12 +174,34 @@ def process_absa_bank_files(file_list, df_masterfile):
 
 # Streamlit UI code
 def main():
+    # Display instructions at the top
+    st.markdown(
+        """
+        <div style="background-color: #f9f9f9; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+            <h3 style="color: #333;">Instructions</h3>
+            <ul>
+                <li>THIS IS THE BANK STATEMENT CONVERTER.</li>
+                <li>Select the bank type: Standard Bank or ABSA.</li>
+                <li>Upload the required files:
+                    <ul>
+                        <li>For Standard Bank, upload the BS TEXT(.txt) file extracted from STD BANK and the MASTER Excel file.</li>
+                        <li>For ABSA, upload the BS from ABSA, this file MUST be in CSV format(.csv).</li>
+                    </ul>
+                </li>
+                <li>Click the "Go" button to process the files.</li>
+                <li>Download the processed file using the provided download button.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     std_bank = 'STANDARD BANK'
     abs_bank = 'ABSA'
-    st.markdown(f"<h2 style='color: blue; font-weight: bold;'>{"BANK STATEMENT CONVERTER"}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color: blue; font-weight: bold;'>BANK STATEMENT CONVERTER</h2>", unsafe_allow_html=True)
 
     # Select Bank Type
-    bank_type = st.radio("Select Bank Type", (std_bank,abs_bank))
+    bank_type = st.radio("Select Bank Type", (std_bank, abs_bank))
 
     # Upload Text File button
     uploaded_text_file = st.file_uploader("Upload Text File", type=["txt", "csv", "xlsx"])
@@ -227,6 +249,9 @@ def main():
                 process_absa_bank_files(file_list, df_masterfile)  # No need to check master file for ABSA
             else:
                 st.error("Please upload the text files before processing.")
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
