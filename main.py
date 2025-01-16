@@ -204,14 +204,14 @@ def main():
     bank_type = st.radio("Select Bank Type", (std_bank, abs_bank))
 
     # Upload Text File button
-    uploaded_text_file = st.file_uploader("Upload Text File", type=["txt", "csv", "xlsx"])
+    uploaded_text_file = st.file_uploader("Upload Bank Statement", type=["txt", "csv", "xlsx"])
     if uploaded_text_file is not None:
         # Save the text file in file_list
         file_path = os.path.join("temp", uploaded_text_file.name)  # Save temporarily
         with open(file_path, "wb") as f:
             f.write(uploaded_text_file.getbuffer())
         file_list.append(file_path)
-        st.write(f"Text file {uploaded_text_file.name} uploaded and added to the list.")
+        st.write(f"BS {uploaded_text_file.name} uploaded and added to the list.")
 
     # Upload Master File button (only if Standard Bank is selected)
     if bank_type == std_bank:
@@ -231,7 +231,7 @@ def main():
 
     # Display file list
     if file_list:
-        st.write("Text files uploaded so far:")
+        st.write("Files uploaded so far:")
         for f in file_list:
             st.write(f)
 
@@ -243,12 +243,12 @@ def main():
             elif df_masterfile is not None and file_list:
                 process_standard_bank_files(file_list, df_masterfile)
             else:
-                st.error("Please upload the text files before processing.")
+                st.error("Please upload the correct files before processing.")
         elif bank_type == abs_bank:
             if file_list:
                 process_absa_bank_files(file_list, df_masterfile)  # No need to check master file for ABSA
             else:
-                st.error("Please upload the text files before processing.")
+                st.error("Please upload the correct files before processing.")
 
 if __name__ == "__main__":
     main()
