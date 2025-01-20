@@ -1,8 +1,10 @@
+#import packages
 import streamlit as st
 import pandas as pd
 import os
 import numpy as np
 import re
+
 
 # Ensure the 'temp' directory exists
 if not os.path.exists("temp"):
@@ -12,101 +14,210 @@ if not os.path.exists("temp"):
 file_list = []  # Will store text files
 df_masterfile = None  # Will hold the master Excel file data
 
+
 # Define your file processing function for Standard Bank
-
 def process_standard_bank_files(file_list, df_masterfile):
-    st.write("Processing Standard Bank files...")
-
-    # Regular expression to match the codes (e.g., SC617, SF607)
-    code_pattern = re.compile(r"\b([A-Z]{2,}[0-9]+)\b")
-
     for file in file_list:
         try:
-            # Read the text file
+            # Read the text file with all 8 columns
             df = pd.read_csv(file, header=None)
 
-            if df.shape[1] < 6:
-                st.error(f"File {file} does not have enough columns.")
-                continue
+            # Drop unnecessary columns (0, 2, 4, 6, 7)
+            df.drop(columns=[0, 2, 4, 6, 7], inplace=True)
 
-            # Add an auxiliary column for original index
+            # Rename remaining columns to 'DATE', 'AMOUNT', 'DESCRIPTION'
+            df.columns = ['DATE', 'AMOUNT', 'DESCRIPTION']
+            df['DESCRIPTION'] = df['DESCRIPTION'].str.strip()  # Remove leading/trailing spaces
+
+            print(f"Data after cleaning and renaming:")
+            print(df.head())  # Check the cleaned data
+
+            # Add an auxiliary column for the original index
             df['original_index'] = df.index
 
-            # Process column 6 (index 5)
-            column6 = df[5].astype(str)
-            processed_lines = column6[column6.str.match(code_pattern)]
-            unprocessed_lines = column6[~column6.str.match(code_pattern)]
+            #remove faulty first 7 chars
+            df['First_Seven_Chars'] = df['DESCRIPTION'].str[:6]
 
-            # Separate DataFrames
-            df2 = df[df[5].isin(processed_lines)].drop([0, 2, 4, 6, 7], axis=1)
-            df1 = df[df[5].isin(unprocessed_lines)].drop([0, 2, 4, 6, 7], axis=1)
+            # Remove the first 6 characters from the original column
+            df['DESCRIPTION'] = df['DESCRIPTION'].str[6:]
 
-            df2[5] = df2[5].astype(str).str.slice(6, 12)
-            df2.columns = ['DATE', 'AMOUNT', 'CODE', 'original_index']
-            df1.columns = ['DATE', 'AMOUNT', 'CODE', 'original_index']
+            def get_matching_code(line):
+                line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
-            # Merge and process columns
-            df2 = pd.merge(df2, df_masterfile[['CODE1', 'DESCRIPTION']], left_on='CODE', right_on='CODE1',
-                           how='left')
-            df2['DESCRIPTION_CODE'] = df2['DESCRIPTION'].fillna('') + ' ' + df2['CODE'].fillna('')
-            df1['DESCRIPTION_CODE'] = df1['CODE'].fillna('')
+                # Pattern 6: 2 numbers, 3 letters, 4 numbers (start of line)
+                match6 = re.search(r'^\d{2}[A-Z]{3}\d{4}\b', line)
+                if match6:
+                    code = match6.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern6'
 
-            # Clean columns
-            df2.drop(columns=['CODE', 'DESCRIPTION'], inplace=True)
-            df1.drop(columns=['CODE'], inplace=True)
-            df1['CODE1'] = None
+                # Pattern 2: 2 numbers, 4 letters, 3 numbers (start of line)
+                match2 = re.search(r'^\d{2}[A-Z]{4}\d{3}\b', line)
+                if match2:
+                    code = match2.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern2'
 
+                # Pattern 1: 2 numbers, 3 letters, 3 numbers (start of line)
+                match1 = re.search(r'^\d{2}[A-Z]{3}\d{3}\b', line)
+                if match1:
+                    code = match1.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern1'
+
+                # Pattern 7: 3 letters, 4 numbers (start of line)
+                match7 = re.search(r'^[A-Z]{3}\d{4}\b', line)
+                if match7:
+                    code = match7.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern7'
+
+                # Pattern 8: 3 letters, 3 numbers (start of line)
+                match8 = re.search(r'^[A-Z]{3}\d{3}\b', line)
+                if match8:
+                    code = match8.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern8'
+
+                # Pattern 3: 1 number, 2 letters, 3 numbers (start of line)
+                match3 = re.search(r'^\d[A-Z]{2}\d{3}\b', line)
+                if match3:
+                    code = match3.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern3'
+
+                # Pattern 4: 1 number, 3 letters, 3 numbers (start of line)
+                match4 = re.search(r'^\d[A-Z]{3}\d{3}\b', line)
+                if match4:
+                    code = match4.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern4'
+
+                # Pattern 5: 2 letters, 4 numbers (start of line)
+                match5 = re.search(r'^[A-Z]{2}\d{4}\b', line)
+                if match5:
+                    code = match5.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern5'
+
+                # Pattern 9: 1 number, 4 letters, 2 numbers (start of line)
+                match9 = re.search(r'^\d[A-Z]{4}\d{2}\b', line)
+                if match9:
+                    code = match9.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern9'
+
+                # Pattern 10: 1 number, 4 letters (start of line)
+                match10 = re.search(r'^\d[A-Z]{4}\b', line)
+                if match10:
+                    code = match10.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern10'
+
+                # Pattern 11: 4 letters, 2 numbers (start of line)
+                match11 = re.search(r'^[A-Z]{4}\d{2}\b', line)
+                if match11:
+                    code = match11.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern11'
+
+                # Pattern 12: 3 letters, 3 numbers (start of line)
+                match12 = re.search(r'^[A-Z]{3}\d{3}\b', line)
+                if match12:
+                    code = match12.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern12'
+
+                return None, None
+
+            # Apply regex and extract matching codes
+            df['CODE'], df['PATTERN'] = zip(*df['DESCRIPTION'].apply(get_matching_code))
+
+            #ADD back extracted letters
+            df['DESCRIPTION'] = df['First_Seven_Chars'] + df['DESCRIPTION']
+
+            # Split rows based on whether a code was matched
+            df_with_codes = df[df['CODE'].notnull()].copy()
+            df_without_codes = df[df['CODE'].isnull()].copy()
+
+            # Process columns for df_with_codes
+            df_with_codes = pd.merge(
+                df_with_codes,
+                df_masterfile[['CODE1', 'DESCRIPTION']],
+                left_on='CODE',
+                right_on='CODE1',
+                how='left'
+            )
+
+            # Access the correct 'DESCRIPTION_x' column from df_with_codes
+            df_with_codes['DESCRIPTION_CODE'] = df_with_codes['DESCRIPTION_y'].fillna('') + ' ' + df_with_codes[
+                'CODE'].fillna('')
+            df_with_codes.drop(columns=['DESCRIPTION_x', 'DESCRIPTION_y'], inplace=True)
+
+            # Handle rows without codes
+            df_without_codes['DESCRIPTION_CODE'] = df_without_codes['DESCRIPTION'].fillna('')
+            df_without_codes['CODE1'] = None
+
+            # Ensure numeric amount
+            df_with_codes['AMOUNT'] = pd.to_numeric(df_with_codes['AMOUNT'], errors='coerce').fillna(0)
+            df_without_codes['AMOUNT'] = pd.to_numeric(df_without_codes['AMOUNT'], errors='coerce').fillna(0)
+
+            # Date formatting function
             def format_date(date):
                 try:
-                    # Attempt to parse the date
                     return pd.to_datetime(date, format='%Y%m%d').strftime('%d/%m/%Y')
                 except Exception:
-                    # If parsing fails, return the original value
                     return date
 
-            # Format dates
-            df2['DATE'] = pd.to_datetime(df2['DATE'], format='%Y%m%d', errors='coerce').dt.strftime(
-                '%d/%m/%Y').fillna(df2['DATE'])
-            df1['DATE'] = df1['DATE'].apply(format_date)
+            df_with_codes['DATE'] = df_with_codes['DATE'].apply(format_date)
+            df_without_codes['DATE'] = df_without_codes['DATE'].apply(format_date)
 
             # Process amounts
-            for df in [df1, df2]:
-                df['CREDIT'] = np.where(df['AMOUNT'] > 0, df['AMOUNT'], 0)
-                df['DEBIT'] = np.where(df['AMOUNT'] < 0, -df['AMOUNT'], 0)
-                df.drop('AMOUNT', axis=1, inplace=True)
+            for df_part in [df_with_codes, df_without_codes]:
+                df_part['CREDIT'] = np.where(df_part['AMOUNT'] > 0, df_part['AMOUNT'], 0)
+                df_part['DEBIT'] = np.where(df_part['AMOUNT'] < 0, -df_part['AMOUNT'], 0)
+                df_part.drop('AMOUNT', axis=1, inplace=True)
 
             # Final ordering
             final_order = ['DATE', 'DESCRIPTION_CODE', 'CODE1', 'DEBIT', 'CREDIT', 'original_index']
-            df1 = df1[final_order]
-            df2 = df2[final_order]
+            df_with_codes = df_with_codes[final_order]
+            df_without_codes = df_without_codes[final_order]
 
-            # Concatenate and save
-            df_combined = pd.concat([df1, df2]).sort_values(by='original_index').reset_index(drop=True)
+            # Concatenate and return
+            df_combined = pd.concat([df_without_codes, df_with_codes]).sort_values(by='original_index').reset_index(
+                drop=True)
             df_combined.drop('original_index', axis=1, inplace=True)
-            try:
-                output_path = os.path.join("temp", "final_output_standard.xlsx")
-                df_combined.to_excel(output_path, index=False)
 
-                with open(output_path, "rb") as file:
-                    st.download_button(
-                        label="Download Standard Bank Processed File",
-                        data=file,
-                        file_name="final_output_standard.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+            output_path = os.path.join("temp", "final_output_standard.xlsx")
+            df_combined.to_excel(output_path, index=False)
 
-            except Exception as e:
-                st.error(f"Failed to save the file: {e}")
+            with open(output_path, "rb") as file:
+                st.download_button(
+                    label="Download Standard Bank Processed File",
+                    data=file,
+                    file_name="final_output_standard.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
         except Exception as e:
-            st.error(f"Error processing file {file}: {e}")
+            st.error(f"Failed to save the file: {e}")
 
     st.write("Standard Bank files have been processed successfully.")
-
+    file_list.clear()
 # Define your file processing function for ABSA Bank
 def process_absa_bank_files(file_list, df_masterfile):
-    st.write("Processing ABSA Bank files...")
-
     for file in file_list:
         try:
             df_absa = pd.read_csv(file, header=None)
@@ -116,7 +227,8 @@ def process_absa_bank_files(file_list, df_masterfile):
 
             # Ensure the DataFrame has enough columns
             if df_absa.shape[1] < max(expected_columns) + 1:
-                raise ValueError(f"File does not have enough columns. Expected at least {max(expected_columns) + 1} columns.")
+                raise ValueError(
+                    f"File does not have enough columns. Expected at least {max(expected_columns) + 1} columns.")
 
             # Select only the relevant columns
             df_absa = df_absa.iloc[:, expected_columns]
@@ -125,22 +237,90 @@ def process_absa_bank_files(file_list, df_masterfile):
             df_absa.columns = ['DATE', 'DESCRIPTION', 'CODE', 'AMOUNT']
             df_absa['original_index'] = df_absa.index
 
-            # Regex pattern to match relevant codes
-            pattern = r'(\b[A-Z]{2}\d{4}\b)'  # Matches CC9054
+            #find codes
+            def get_matching_code(line):
+                line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
-            # Filter rows based on the regex pattern
-            df3 = df_absa[df_absa['DESCRIPTION'].str.contains(pattern, regex=True)].reset_index(drop=True)
-            df3['CODE'] = df3['DESCRIPTION'].str.extract(pattern)
-            df4 = df_absa[~df_absa['DESCRIPTION'].str.contains(pattern, regex=True)].reset_index(drop=True)
+                # Pattern 6: 2 numbers, 3 letters, 4 numbers (anywhere in line, but not part of another word)
+                match6 = re.search(r'(?<!\w)\d{2}[A-Z]{3}\d{4}(?!\w)', line)
+                if match6:
+                    code = match6.group(0)
+                    return code
 
-            # Fix df4
+                # Pattern 2: 2 numbers, 4 letters, 3 numbers (anywhere in line, but not part of another word)
+                match2 = re.search(r'(?<!\w)\d{2}[A-Z]{4}\d{3}(?!\w)', line)
+                if match2:
+                    code = match2.group(0)
+                    return code
+
+                # Pattern 1: 2 numbers, 3 letters, 3 numbers (anywhere in line, but not part of another word)
+                match1 = re.search(r'(?<!\w)\d{2}[A-Z]{3}\d{3}(?!\w)', line)
+                if match1:
+                    code = match1.group(0)
+                    return code
+
+                # Pattern 7: 3 letters, 4 numbers (anywhere in line, but not part of another word)
+                match7 = re.search(r'(?<!\w)[A-Z]{3}\d{4}(?!\w)', line)
+                if match7:
+                    code = match7.group(0)
+                    return code
+
+                # Pattern 8: 3 letters, 3 numbers (anywhere in line, but not part of another word)
+                match8 = re.search(r'(?<!\w)[A-Z]{3}\d{3}(?!\w)', line)
+                if match8:
+                    code = match8.group(0)
+                    return code
+
+                # Pattern 3: 1 number, 2 letters, 3 numbers (anywhere in line, but not part of another word)
+                match3 = re.search(r'(?<!\w)\d[A-Z]{2}\d{3}(?!\w)', line)
+                if match3:
+                    code = match3.group(0)
+                    return code
+
+                # Pattern 4: 1 number, 3 letters, 3 numbers (anywhere in line, but not part of another word)
+                match4 = re.search(r'(?<!\w)\d[A-Z]{3}\d{3}(?!\w)', line)
+                if match4:
+                    code = match4.group(0)
+                    return code
+
+                # Pattern 5: 2 letters, 4 numbers (anywhere in line, but not part of another word)
+                match5 = re.search(r'(?<!\w)[A-Z]{2}\d{4}(?!\w)', line)
+                if match5:
+                    code = match5.group(0)
+                    return code
+
+                # Pattern 9: 1 number, 4 letters, 2 numbers (anywhere in line, but not part of another word)
+                match9 = re.search(r'(?<!\w)\d[A-Z]{4}\d{2}(?!\w)', line)
+                if match9:
+                    code = match9.group(0)
+                    return code
+
+                # Pattern 10: 1 number, 4 letters (anywhere in line, but not part of another word)
+                match10 = re.search(r'(?<!\w)\d[A-Z]{4}(?!\w)', line)
+                if match10:
+                    code = match10.group(0)
+                    return code
+
+                # Pattern 11: 4 letters, 2 numbers (anywhere in line, but not part of another word)
+                match11 = re.search(r'(?<!\w)[A-Z]{4}\d{2}(?!\w)', line)
+                if match11:
+                    code = match11.group(0)
+                    return code
+
+                # Pattern 12: 3 letters, 3 numbers (anywhere in line, but not part of another word)
+                match12 = re.search(r'(?<!\w)[A-Z]{3}\d{3}(?!\w)', line)
+                if match12:
+                    code = match12.group(0)
+                    return code
+
+                return None
+
+            # Apply regex to extract codes and add them to a new 'CODE' column
+            df_absa['CODE'] = df_absa['DESCRIPTION'].apply(get_matching_code)
+
+            # Fix df_absa
             final_order = ['DATE', 'DESCRIPTION', 'CODE', 'AMOUNT', 'original_index']
-            df4.drop('CODE', axis='columns', inplace=True)
-            df4['CODE'] = ''
-            df4 = df4[final_order]
-
-            # ADD back together
-            df_absa = pd.concat([df3, df4]).sort_values(by='original_index').reset_index(drop=True)
+            df_absa = df_absa[final_order]
 
             # DEBIT and CREDIT
             df_absa['DEBIT'] = np.where(df_absa['AMOUNT'] < 0, -df_absa['AMOUNT'], 0)
@@ -150,7 +330,8 @@ def process_absa_bank_files(file_list, df_masterfile):
 
             # FIX DATE
             df_absa['DATE'] = df_absa['DATE'].astype(str)  # Convert the column to string
-            df_absa['DATE'] = pd.to_datetime(df_absa['DATE'], format='%y%m%d', errors='coerce').dt.strftime('%d/%m/%Y').fillna(df_absa['DATE'])
+            df_absa['DATE'] = pd.to_datetime(df_absa['DATE'], format='%y%m%d', errors='coerce').dt.strftime(
+                '%d/%m/%Y').fillna(df_absa['DATE'])
 
             try:
                 output_path = os.path.join("temp", "final_output_ABSA.xlsx")
@@ -169,39 +350,152 @@ def process_absa_bank_files(file_list, df_masterfile):
 
         except Exception as e:
             st.error(f"Error processing file {file}: {e}")
+    file_list.clear()
 
-    st.write("ABSA Bank files have been processed successfully.")
+
+def process_capitec_bank_files(file_list, df_masterfile):
+
+    for file in file_list:
+        try:
+            pattern = r'(\bD\d{3}\b)'
+            df_capitec = pd.read_csv(file, header=None)
+
+            # Expected column indices
+            expected_columns = [1, 3, 4, 5]
+
+            # Ensure the DataFrame has enough columns
+            if df_capitec.shape[1] < max(expected_columns) + 1:
+                raise ValueError(
+                    f"File does not have enough columns. Expected at least {max(expected_columns) + 1} columns.")
+
+            # Extract Fees
+            fees = df_capitec.iloc[-1, 5]
+            date = df_capitec.iloc[-2, 1]
+            description = df_capitec.iloc[-2, 2]
+
+            # Select only the relevant columns
+            df_capitec = df_capitec.iloc[:, expected_columns]
+            df_capitec = df_capitec.iloc[3:]
+            df_capitec.reset_index(drop=True, inplace=True)
+            # Rename columns
+            df_capitec.columns = ['DATE', 'REFERENCE', 'AMOUNT', 'FEES']
+
+            df_capitec.drop(columns='FEES', inplace=True)
+            df_capitec = df_capitec.iloc[:-2]
+
+            # Sort Debit + Credit
+            # Convert the 'AMOUNT' column to numeric
+            df_capitec['AMOUNT'] = pd.to_numeric(df_capitec['AMOUNT'], errors='coerce')
+
+            # Replace NaN with 0
+            df_capitec['AMOUNT'] = df_capitec['AMOUNT'].fillna(0)
+
+            # Create 'DEBIT' and 'CREDIT' columns
+            df_capitec['DEBIT'] = np.where(df_capitec['AMOUNT'] < 0, -df_capitec['AMOUNT'], 0)
+            df_capitec['CREDIT'] = np.where(df_capitec['AMOUNT'] > 0, df_capitec['AMOUNT'], 0)
+
+            # Drop the 'AMOUNT' column
+            df_capitec.drop(columns='AMOUNT', inplace=True)
+
+            # Handle sites and activity codes
+            df_capitec['SITE'] = df_capitec['REFERENCE'].str.extract(pattern, expand=False)
+
+            # Replace NaN values with a default value, for example 'No Match'
+            df_capitec['SITE'].fillna("", inplace=True)
+
+            # Create column for activity letter
+            df_capitec['activity_letter'] = ""
+
+            # Check if 'SITE' is not None and not an empty string, then extract the 6th letter
+            df_capitec.loc[(df_capitec['SITE'].notna()) & (df_capitec['SITE'] != ""), 'activity_letter'] = \
+                df_capitec['REFERENCE'].str[5]
+
+            # Create column for activity
+            df_capitec['ACTIVITY'] = ""
+
+            # Check for B or C and assign corresponding values
+            df_capitec.loc[df_capitec['activity_letter'] == 'B', 'ACTIVITY'] = "B8200"
+            df_capitec.loc[df_capitec['activity_letter'] == 'C', 'ACTIVITY'] = "C1200"
+            df_capitec.drop(columns='activity_letter', inplace=True)
+
+            # Create reference column
+            if (df_capitec['DEBIT'] > 0).any():
+                # Only prepend "EFT WAGES" to rows where the condition is true
+                df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE'] = (
+                        "EFT WAGES " + df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE']
+                )
+
+            # Final order
+            final_order = ['DATE', 'REFERENCE', 'SITE', 'ACTIVITY', 'DEBIT', 'CREDIT']
+            df_capitec = df_capitec[final_order]
+
+            # Add back last row
+            last_row = pd.Series([date, description, '', '', fees, 0],
+                                 index=df_capitec.columns)
+
+            # Append the new row to the DataFrame
+            df_capitec = pd.concat([df_capitec, last_row.to_frame().T], ignore_index=True)
+            try:
+                output_path = os.path.join("temp", "final_output_CAPITEC.xlsx")
+                df_capitec.to_excel(output_path, index=False)
+
+                with open(output_path, "rb") as file:
+                    st.download_button(
+                        label="Download CAPITEC Bank Processed File",
+                        data=file,
+                        file_name="final_output_standard.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+            except Exception as e:
+                st.error(f"Failed to save the file: {e}")
+
+        except Exception as e:
+            st.error(f"Error processing file {file}: {e}")
+    file_list.clear()
+
+
 
 # Streamlit UI code
 def main():
-    # Display instructions at the top
-    st.markdown(
-        """
-        <div style="background-color: #f9f9f9; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
-            <h3 style="color: #333;">Instructions</h3>
-            <ul>
-                <li>THIS IS THE BANK STATEMENT CONVERTER.</li>
-                <li>Select the bank type: Standard Bank or ABSA.</li>
-                <li>Upload the required files:
-                    <ul>
-                        <li>For Standard Bank, upload the BS TEXT(.txt) file extracted from STD BANK and the MASTER Excel file.</li>
-                        <li>For ABSA, upload the BS from ABSA, this file MUST be in CSV format(.csv).</li>
-                    </ul>
-                </li>
-                <li>Click the "Go" button to process the files.</li>
-                <li>Download the processed file using the provided download button.</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("""
+        <style>
+        .stApp {
+            background-image: url('https://images.unsplash.com/photo-1490093158370-1a6be674437b?q=80&w=1314&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+        }
+        .stApp::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            filter: grayscale(100%);
+            z-index: -1;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+            <style>
+            .heading {
+                font-size: 36px;
+                font-weight: bold;
+                text-align: center;
+                color: #00008B;  /* Change to any color you want */
+            }
+            </style>
 
+            <div class="heading">BANK STATEMENT CONVERTER</div>
+        """, unsafe_allow_html=True)
     std_bank = 'STANDARD BANK'
-    abs_bank = 'ABSA'
-    st.markdown(f"<h2 style='color: blue; font-weight: bold;'>BANK STATEMENT CONVERTER</h2>", unsafe_allow_html=True)
-
+    abs_bank = "ABSA BANK"
+    cpt_bank = 'CAPITEC BANK'
     # Select Bank Type
-    bank_type = st.radio("Select Bank Type", (std_bank, abs_bank))
+    bank_type = st.radio("", (std_bank, abs_bank, cpt_bank))
 
     # Upload Text File button
     uploaded_text_file = st.file_uploader("Upload Bank Statement", type=["txt", "csv", "xlsx"])
@@ -211,7 +505,6 @@ def main():
         with open(file_path, "wb") as f:
             f.write(uploaded_text_file.getbuffer())
         file_list.append(file_path)
-        st.write(f"BS {uploaded_text_file.name} uploaded and added to the list.")
 
     # Upload Master File button (only if Standard Bank is selected)
     if bank_type == std_bank:
@@ -225,15 +518,8 @@ def main():
             try:
                 df_masterfile = pd.read_excel(file_path)
                 df_masterfile.columns = ['CODE1', 'DESCRIPTION']
-                st.write(f"Master file {uploaded_master_file.name} loaded successfully.")
             except Exception as e:
                 st.error(f"Failed to load the master file: {e}")
-
-    # Display file list
-    if file_list:
-        st.write("Files uploaded so far:")
-        for f in file_list:
-            st.write(f)
 
     # 'Go' button to process files
     if st.button("Go"):
@@ -249,6 +535,9 @@ def main():
                 process_absa_bank_files(file_list, df_masterfile)  # No need to check master file for ABSA
             else:
                 st.error("Please upload the correct files before processing.")
+        elif bank_type == cpt_bank:
+            if file_list:
+                process_capitec_bank_files(file_list, df_masterfile)  # No need to check master file for CAPITEC
 
 if __name__ == "__main__":
     main()
