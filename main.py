@@ -353,107 +353,89 @@ def process_absa_bank_files(file_list, df_masterfile):
     file_list.clear()
 
 
-def process_capitec_bank_files(file_list, df_masterfile):
-
+def process_capitec_bank_files(file_list):
     for file in file_list:
         try:
-            pattern = r'(\bD\d{3}\b)'
-            df_capitec = pd.read_csv(file, header=None)
-
-            # Expected column indices
-            expected_columns = [1, 3, 4, 5]
-
-            # Ensure the DataFrame has enough columns
-            if df_capitec.shape[1] < max(expected_columns) + 1:
-                raise ValueError(
-                    f"File does not have enough columns. Expected at least {max(expected_columns) + 1} columns.")
-
-            # Extract Fees
-            fees = df_capitec.iloc[-1, 5]
-            date = df_capitec.iloc[-2, 1]
-            description = df_capitec.iloc[-2, 2]
-
-            # Select only the relevant columns
-            df_capitec = df_capitec.iloc[:, expected_columns]
-            df_capitec = df_capitec.iloc[3:]
-            df_capitec.reset_index(drop=True, inplace=True)
-            # Rename columns
-            df_capitec.columns = ['DATE', 'REFERENCE', 'AMOUNT', 'FEES']
-
-            df_capitec.drop(columns='FEES', inplace=True)
-            df_capitec = df_capitec.iloc[:-2]
-
-            # Sort Debit + Credit
-            # Convert the 'AMOUNT' column to numeric
-            df_capitec['AMOUNT'] = pd.to_numeric(df_capitec['AMOUNT'], errors='coerce')
-
-            # Replace NaN with 0
-            df_capitec['AMOUNT'] = df_capitec['AMOUNT'].fillna(0)
-
-            # Create 'DEBIT' and 'CREDIT' columns
-            df_capitec['DEBIT'] = np.where(df_capitec['AMOUNT'] < 0, -df_capitec['AMOUNT'], 0)
-            df_capitec['CREDIT'] = np.where(df_capitec['AMOUNT'] > 0, df_capitec['AMOUNT'], 0)
-
-            # Drop the 'AMOUNT' column
-            df_capitec.drop(columns='AMOUNT', inplace=True)
-
-            # Handle sites and activity codes
-            df_capitec['SITE'] = df_capitec['REFERENCE'].str.extract(pattern, expand=False)
-
-            # Replace NaN values with a default value, for example 'No Match'
-            df_capitec['SITE'].fillna("", inplace=True)
-
-            # Create column for activity letter
-            df_capitec['activity_letter'] = ""
-
-            # Check if 'SITE' is not None and not an empty string, then extract the 6th letter
-            df_capitec.loc[(df_capitec['SITE'].notna()) & (df_capitec['SITE'] != ""), 'activity_letter'] = \
-                df_capitec['REFERENCE'].str[5]
-
-            # Create column for activity
-            df_capitec['ACTIVITY'] = ""
-
-            # Check for B or C and assign corresponding values
-            df_capitec.loc[df_capitec['activity_letter'] == 'B', 'ACTIVITY'] = "B8200"
-            df_capitec.loc[df_capitec['activity_letter'] == 'C', 'ACTIVITY'] = "C1200"
-            df_capitec.drop(columns='activity_letter', inplace=True)
-
-            # Create reference column
-            if (df_capitec['DEBIT'] > 0).any():
-                # Only prepend "EFT WAGES" to rows where the condition is true
-                df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE'] = (
-                        "EFT WAGES " + df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE']
-                )
-
-            # Final order
-            final_order = ['DATE', 'REFERENCE', 'SITE', 'ACTIVITY', 'DEBIT', 'CREDIT']
-            df_capitec = df_capitec[final_order]
-
-            # Add back last row
-            last_row = pd.Series([date, description, '', '', fees, 0],
-                                 index=df_capitec.columns)
-
-            # Append the new row to the DataFrame
-            df_capitec = pd.concat([df_capitec, last_row.to_frame().T], ignore_index=True)
-            try:
-                output_path = os.path.join("temp", "final_output_CAPITEC.xlsx")
-                df_capitec.to_excel(output_path, index=False)
-
-                with open(output_path, "rb") as file:
-                    st.download_button(
-                        label="Download CAPITEC Bank Processed File",
-                        data=file,
-                        file_name="final_output_standard.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-
-            except Exception as e:
-                st.error(f"Failed to save the file: {e}")
-
+            # Read CSV file and skip the first 3 lines
+            df_capitec = pd.read_csv(file, header=None, engine='python', skiprows=3)
         except Exception as e:
-            st.error(f"Error processing file {file}: {e}")
-    file_list.clear()
+            st.error(f"Error reading file {file}: {e}")
+            continue  # Skip the current file and continue with the rest
 
+        # Validate columns
+        expected_columns = [1, 2, 3, 4, 5]
+        if df_capitec.shape[1] < max(expected_columns) + 1:
+            st.error(f"File does not have enough columns. Expected at least {max(expected_columns) + 1} columns.")
+            continue  # Skip this file and continue with the next
+
+        # Extract Fees, Date, and Description
+        fees = df_capitec.iloc[-1, 5]
+        date = df_capitec.iloc[-2, 1]
+        description = df_capitec.iloc[-2, 2]
+
+        # Select relevant columns and clean up
+        df_capitec = df_capitec.iloc[:, [1, 3, 4, 5]]
+        df_capitec.reset_index(drop=True, inplace=True)
+        df_capitec.columns = ['DATE', 'REFERENCE', 'AMOUNT', 'FEES']
+        df_capitec.drop(columns='FEES', inplace=True)
+
+        # Remove the last two rows (summary rows)
+        df_capitec = df_capitec.iloc[:-2]
+
+        # Convert 'AMOUNT' to numeric
+        df_capitec['AMOUNT'] = pd.to_numeric(df_capitec['AMOUNT'], errors='coerce').fillna(0)
+
+        # Create 'DEBIT' and 'CREDIT' columns
+        df_capitec['DEBIT'] = np.where(df_capitec['AMOUNT'] < 0, -df_capitec['AMOUNT'], 0)
+        df_capitec['CREDIT'] = np.where(df_capitec['AMOUNT'] > 0, df_capitec['AMOUNT'], 0)
+        df_capitec.drop(columns='AMOUNT', inplace=True)
+
+        # Extract site information from 'REFERENCE'
+        # Extract the 'D' followed by exactly three digits from 'REFERENCE'
+        pattern = r'(D\d{3})'
+        df_capitec['SITE'] = df_capitec['REFERENCE'].str.extract(pattern, expand=False).fillna("")
+
+        # Extract and process activity codes
+        df_capitec['activity_letter'] = df_capitec['REFERENCE'].str[5:6]
+        df_capitec['ACTIVITY'] = ""
+        df_capitec.loc[df_capitec['activity_letter'] == 'B', 'ACTIVITY'] = "B8200"
+        df_capitec.loc[df_capitec['activity_letter'] == 'C', 'ACTIVITY'] = "C1200"
+        df_capitec.drop(columns='activity_letter', inplace=True)
+
+        # Append "EFT WAGES" to debit transactions
+        df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE'] = (
+                "EFT WAGES " + df_capitec.loc[df_capitec['DEBIT'] > 0, 'REFERENCE']
+        )
+
+        # Reorder columns
+        final_order = ['DATE', 'REFERENCE', 'SITE', 'ACTIVITY', 'DEBIT', 'CREDIT']
+        df_capitec = df_capitec[final_order]
+
+        # Add back last row
+        last_row = pd.Series(
+            [date, description, '', '', fees, 0],
+            index=df_capitec.columns
+        )
+        df_capitec = pd.concat([df_capitec, last_row.to_frame().T], ignore_index=True)
+
+        # Try saving the final output to Excel
+        try:
+            output_path = os.path.join("temp", "final_output_CAPITEC.xlsx")
+            df_capitec.to_excel(output_path, index=False)
+
+            # Streamlit download button
+            with open(output_path, "rb") as file:
+                st.download_button(
+                    label="Download CAPITEC Bank Processed File",
+                    data=file,
+                    file_name="final_output_standard.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        except Exception as e:
+            st.error(f"Failed to save the file: {e}")
+
+    # Clear the file list after processing all files
+    file_list.clear()
 
 
 # Streamlit UI code
@@ -537,7 +519,7 @@ def main():
                 st.error("Please upload the correct files before processing.")
         elif bank_type == cpt_bank:
             if file_list:
-                process_capitec_bank_files(file_list, df_masterfile)  # No need to check master file for CAPITEC
+                process_capitec_bank_files(file_list)  # No need to check master file for CAPITEC
 
 if __name__ == "__main__":
     main()
