@@ -44,6 +44,12 @@ def process_standard_bank_files(file_list, df_masterfile):
             def get_matching_code(line):
                 line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
+                # Pattern 12: 'DIV' followed by one or two numbers (anywhere in line, but not part of another word)
+                match12 = re.search(r'\bDIV(\d{1,2})\b', line)
+                if match12:
+                    code = match12.group(1)  # Extract only the number part
+                    return code
+
                 # Pattern 6: 2 numbers, 3 letters, 4 numbers (start of line)
                 match6 = re.search(r'^\d{2}[A-Z]{3}\d{4}\b', line)
                 if match6:
@@ -218,6 +224,10 @@ def process_standard_bank_files(file_list, df_masterfile):
     file_list.clear()
 # Define your file processing function for ABSA Bank
 def process_absa_bank_files(file_list, df_masterfile):
+    #declare removable strings
+    remove_list = ['ACB DEBIT:EXTERNALSL-DEBITS', 'ACB DEBIT:EXTERNAL', 'DEBIT TRANSFER', 'ACB CREDIT']
+    debit_pattern = r'^DEBIT TRANSFER\d{6}'
+
     for file in file_list:
         try:
             df_absa = pd.read_csv(file, header=None)
@@ -237,10 +247,30 @@ def process_absa_bank_files(file_list, df_masterfile):
             df_absa.columns = ['DATE', 'DESCRIPTION', 'CODE', 'AMOUNT']
             df_absa['original_index'] = df_absa.index
 
+            #remove debit_transfer followed by numbers first
+            def remove_debit_transfer(line):
+                return re.sub(debit_pattern, '', line).strip()  # Removes the match and strips extra spaces
+
+            df_absa['DESCRIPTION'] = df_absa['DESCRIPTION'].apply(remove_debit_transfer)
+
+            #remove unnecessary description
+            def remove_starting_strings(line, remove_list):
+                for string in remove_list:
+                    if line.startswith(string):
+                        return line[len(string):].lstrip()  # Remove string and leading spaces
+                return line
+            # Apply the function to the column
+            df_absa['DESCRIPTION'] = df_absa['DESCRIPTION'].apply(lambda x: remove_starting_strings(x, remove_list))
+
             #find codes
             def get_matching_code(line):
                 line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
+                # Pattern 12: 'DIV' followed by one or two numbers (anywhere in line, but not part of another word)
+                match12 = re.search(r'\bDIV(\d{1,2})\b', line)
+                if match12:
+                    code = match12.group(1)  # Extract only the number part
+                    return code
                 # Pattern 6: 2 numbers, 3 letters, 4 numbers (anywhere in line, but not part of another word)
                 match6 = re.search(r'(?<!\w)\d{2}[A-Z]{3}\d{4}(?!\w)', line)
                 if match6:
