@@ -1,4 +1,4 @@
-#import packages
+
 import streamlit as st
 import pandas as pd
 import os
@@ -15,7 +15,7 @@ file_list = []  # Will store text files
 df_masterfile = None  # Will hold the master Excel file data
 
 
-# Define your file processing function for Standard Bank
+
 def process_standard_bank_files(file_list, df_masterfile):
     for file in file_list:
         try:
@@ -29,9 +29,6 @@ def process_standard_bank_files(file_list, df_masterfile):
             df.columns = ['DATE', 'AMOUNT', 'DESCRIPTION']
             df['DESCRIPTION'] = df['DESCRIPTION'].str.strip()  # Remove leading/trailing spaces
 
-            print(f"Data after cleaning and renaming:")
-            print(df.head())  # Check the cleaned data
-
             # Add an auxiliary column for the original index
             df['original_index'] = df.index
 
@@ -44,11 +41,13 @@ def process_standard_bank_files(file_list, df_masterfile):
             def get_matching_code(line):
                 line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
-                # Pattern 12: 'DIV' followed by one or two numbers (anywhere in line, but not part of another word)
-                match12 = re.search(r'\bDIV(\d{1,2})\b', line)
-                if match12:
-                    code = match12.group(1)  # Extract only the number part
-                    return code
+                # Pattern 13: 'DIV' followed by one or two numbers (anywhere in line, but not part of another word)
+                match13 = re.search(r'\bDIV(\d{1,2})\b', line)
+                if match13:
+                    code = match13.group(1)  # Extract only the number part
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern13'
 
                 # Pattern 6: 2 numbers, 3 letters, 4 numbers (start of line)
                 match6 = re.search(r'^\d{2}[A-Z]{3}\d{4}\b', line)
@@ -137,6 +136,14 @@ def process_standard_bank_files(file_list, df_masterfile):
                     if code + ':' in line:  # Check if code is followed by ':'
                         return None, None
                     return code, 'pattern11'
+
+                # Pattern 14: 4 letters, 4 numbers (start of line)
+                match14 = re.search(r'^\d[A-Z]{4}\d{4}\b', line)
+                if match14:
+                    code = match14.group(0)
+                    if code + ':' in line:  # Check if code is followed by ':'
+                        return None, None
+                    return code, 'pattern14'
 
                 # Pattern 12: 3 letters, 3 numbers (start of line)
                 match12 = re.search(r'^[A-Z]{3}\d{3}\b', line)
@@ -267,9 +274,9 @@ def process_absa_bank_files(file_list, df_masterfile):
                 line = str(line).strip()  # Ensure it's a string and remove any surrounding spaces
 
                 # Pattern 12: 'DIV' followed by one or two numbers (anywhere in line, but not part of another word)
-                match12 = re.search(r'\bDIV(\d{1,2})\b', line)
-                if match12:
-                    code = match12.group(1)  # Extract only the number part
+                match13 = re.search(r'\bDIV(\d{1,2})\b', line)
+                if match13:
+                    code = match13.group(1)  # Extract only the number part
                     return code
                 # Pattern 6: 2 numbers, 3 letters, 4 numbers (anywhere in line, but not part of another word)
                 match6 = re.search(r'(?<!\w)\d{2}[A-Z]{3}\d{4}(?!\w)', line)
@@ -335,6 +342,12 @@ def process_absa_bank_files(file_list, df_masterfile):
                 match11 = re.search(r'(?<!\w)[A-Z]{4}\d{2}(?!\w)', line)
                 if match11:
                     code = match11.group(0)
+                    return code
+
+                # Pattern 14: 4 letters, 4 numbers (start of line)
+                match14 = re.search(r'^\d[A-Z]{4}\d{4}\b', line)
+                if match14:
+                    code = match14.group(0)
                     return code
 
                 # Pattern 12: 3 letters, 3 numbers (anywhere in line, but not part of another word)
@@ -468,8 +481,12 @@ def process_capitec_bank_files(file_list):
     file_list.clear()
 
 
-# Streamlit UI code
+from pages import AVBOB  # Import your avbob module from the pages directory
+
+
+# Add navigation sidebar
 def main():
+
     st.markdown("""
         <style>
         .stApp {
@@ -491,23 +508,28 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-    st.markdown("""
-            <style>
-            .heading {
-                font-size: 36px;
-                font-weight: bold;
-                text-align: center;
-                color: #00008B;  /* Change to any color you want */
-            }
-            </style>
 
-            <div class="heading">BANK STATEMENT CONVERTER</div>
-        """, unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+        .heading {
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            color: #00008B;
+        }
+        </style>
+
+        <div class="heading">BANK STATEMENT CONVERTER</div>
+    """, unsafe_allow_html=True)
+
     std_bank = 'STANDARD BANK'
     abs_bank = "ABSA BANK"
     cpt_bank = 'CAPITEC BANK'
+
     # Select Bank Type
     bank_type = st.radio("", (std_bank, abs_bank, cpt_bank))
+
+    file_list = []
 
     # Upload Text File button
     uploaded_text_file = st.file_uploader("Upload Bank Statement", type=["txt", "csv", "xlsx"])
@@ -550,6 +572,7 @@ def main():
         elif bank_type == cpt_bank:
             if file_list:
                 process_capitec_bank_files(file_list)  # No need to check master file for CAPITEC
+
 
 if __name__ == "__main__":
     main()
