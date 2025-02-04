@@ -16,14 +16,14 @@ def process_employee_data(avbob_file, new_file, terminate_file):
         df_new_employees = pd.read_excel(new_file, engine="openpyxl", dtype=str)
         df_new_employees.columns = df_new_employees.columns.str.strip()
         add_columns = df_new_employees.columns
-        if len(add_columns) != 8:
-            raise ValueError(f"This file only has {len(add_columns)} columns, it should have 8.")
+        if len(add_columns) != 9:
+            raise ValueError(f"The new employee data file only has {len(add_columns)} columns, it should have 9.")
 
         # Read Terminations data
         df_terminations = pd.read_excel(terminate_file, engine="openpyxl", dtype=str)
         terminations_columns = df_terminations.columns
-        if len(terminations_columns) != 9:
-            raise ValueError(f"This file only has {len(terminations_columns)} columns, it should have 9.")
+        if len(terminations_columns) != 10:
+            raise ValueError(f"The termination data file only has {len(terminations_columns)} columns, it should have 10.")
 
 #======================================================================================================================
 # CONSTRUCTION OF NEW AVBOB SCHEDULE
