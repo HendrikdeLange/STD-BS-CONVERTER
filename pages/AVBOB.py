@@ -124,6 +124,12 @@ def main():
         <div class="heading">AVBOB SCHEDULE</div>
     """, unsafe_allow_html=True)
 
+    st.write("### Please ensure the new employee columns follow this pattern:")
+    st.write("`CODE | SURNAME | INITIALS | ID | DOB | PASSPORT | GROUP | GENDER | DATE ENGAGED`")
+
+    st.write("### The terminations columns must follow this pattern:")
+    st.write("`CODE | SURNAME | INITIALS | ID | DOB | PASSPORT | GROUP | GENDER | DATE ENGAGED | DATE TERMINATED`")
+
     # File uploaders
     avbob_file = st.file_uploader("Upload the previous month's schedule", type=["xlsx", "xls"])
     new_file = st.file_uploader("Upload New Employees Data", type=["xlsx", "xls"])
