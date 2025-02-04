@@ -1,22 +1,22 @@
 import pandas as pd
 import openpyxl
 import streamlit as st
-
+import xlsxwriter
 
 
 def process_employee_data(avbob_file, new_file, terminate_file):
     # Read AVBOB data
-    df_avbob = pd.read_excel(avbob_file, engine="openpyxl")
+    df_avbob = pd.read_excel(avbob_file, engine="openpyxl", dtype=str)
     df_avbob.columns = df_avbob.columns.str.strip()
     avbob_columns = df_avbob.columns
 
     # Read New Employee data
-    df_new_employees = pd.read_excel(new_file, engine="openpyxl")
+    df_new_employees = pd.read_excel(new_file, engine="openpyxl",dtype=str)
     df_new_employees.columns = df_new_employees.columns.str.strip()
     add_columns = df_new_employees.columns
 
     # Read Terminations data
-    df_terminations = pd.read_excel(terminate_file, engine="openpyxl")
+    df_terminations = pd.read_excel(terminate_file, engine="openpyxl", dtype=str)
     terminations_columns = df_terminations.columns
 
     # EMPLOYEE CODE HANDLING
@@ -34,6 +34,19 @@ def process_employee_data(avbob_file, new_file, terminate_file):
     new_group = pd.Series(df_new_employees[add_columns[6]])
     combined_group = pd.concat([og_group.reset_index(drop=True), new_group.reset_index(drop=True)], axis=0)
 
+    og_id = pd.Series(df_avbob[avbob_columns[9]])
+    df_new_employees[add_columns[3]] = df_new_employees[add_columns[3]].fillna(df_new_employees[add_columns[5]])
+    new_id = pd.Series(df_new_employees[add_columns[3]].astype(str))
+    combined_id = pd.concat([og_id.reset_index(drop=True), new_id.reset_index(drop=True)], axis=0)
+
+    # NEW EMPLOYEE SHEET
+    df_new_employees[add_columns[3]] = new_id
+    passport = add_columns[5]
+    group = add_columns[6]
+    df_new_sheet = df_new_employees.copy()
+    df_new_sheet.drop(columns=[passport, group], inplace=True)
+
+
     df_new_employees[add_columns[8]] = df_new_employees[add_columns[8]].astype(str).str[:-2].astype(int)
     og_commence = pd.Series(df_avbob[avbob_columns[4]])
     new_commence = pd.Series(df_new_employees[add_columns[8]])
@@ -50,11 +63,6 @@ def process_employee_data(avbob_file, new_file, terminate_file):
     og_birth = pd.Series(df_avbob[avbob_columns[8]])
     new_birth = pd.Series(df_new_employees[add_columns[4]])
     combined_birth = pd.concat([og_birth.reset_index(drop=True), new_birth.reset_index(drop=True)], axis=0)
-
-    og_id = pd.Series(df_avbob[avbob_columns[9]])
-    df_new_employees[add_columns[3]] = df_new_employees[add_columns[3]].fillna(df_new_employees[add_columns[5]])
-    new_id = pd.Series(df_new_employees[add_columns[3]].astype(str))
-    combined_id = pd.concat([og_id.reset_index(drop=True), new_id.reset_index(drop=True)], axis=0)
 
     og_gender = pd.Series(df_avbob[avbob_columns[11]])
     new_gender = pd.Series(df_new_employees[add_columns[7]])
@@ -91,8 +99,15 @@ def process_employee_data(avbob_file, new_file, terminate_file):
     # Remove rows with termination codes
     df_new_avbob = df_new_avbob[~df_new_avbob[avbob_columns[0]].isin(valid_terminations)]
 
+    #Termination sheet
+    df_terminations[terminations_columns[3]] = df_terminations[terminations_columns[3]].fillna(df_terminations[terminations_columns[5]])
+    new_terminations_id = pd.Series(df_terminations[terminations_columns[3]].astype(str))
+    df_terminations[terminations_columns[3]] = new_terminations_id
+    term_passport = terminations_columns[5]
+    term_group = terminations_columns[6]
 
-    return df_new_avbob
+    df_terminations.drop(columns = [term_passport, term_group], inplace=True)
+    return df_new_avbob, df_new_sheet, df_terminations
 
 def main():
     # Streamlit UI
@@ -118,11 +133,13 @@ def main():
     if st.button("Go"):
         if avbob_file and new_file and terminate_file:
             # Process the data
-            df_new_avbob = process_employee_data(avbob_file, new_file, terminate_file)
-
+            df_new_avbob, df_new_sheet, df_terminations = process_employee_data(avbob_file, new_file,terminate_file)
             # Allow user to download the final processed file
             output_file_path = "temp/final_output.xlsx"
-            df_new_avbob.to_excel(output_file_path, index=False)
+            with pd.ExcelWriter(output_file_path, engine='xlsxwriter') as writer:
+                df_new_avbob.to_excel(writer, sheet_name='ACTIVE', index=False)
+                df_new_sheet.to_excel(writer, sheet_name='NEW EMPLOYEES', index=False)
+                df_terminations.to_excel(writer, sheet_name='TERMINATIONS   ', index=False)
 
             # Provide download link
             with open(output_file_path, "rb") as f:
